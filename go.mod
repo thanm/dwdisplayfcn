@@ -1,4 +1,5 @@
-module dwdisplayfcn
+
+module github.com/thanm/dwdisplayfcn
 
 go 1.17
 

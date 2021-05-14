@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"github.com/thanm/dwdisplayfcn/examine"
 )
 
 var verbflag = flag.Int("v", 0, "Verbose trace output level")
@@ -52,6 +54,6 @@ func main() {
 	if flag.NArg() != 0 {
 		usage("unexpected additional arguments")
 	}
-	examineFile(*moduleflag, *fcnflag)
+	examine.ExamineFile(*moduleflag, *fcnflag)
 	verb(1, "leaving main")
 }

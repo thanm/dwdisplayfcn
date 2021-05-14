@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package examine
 
 import (
 	"debug/dwarf"
 	"debug/elf"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -19,6 +20,8 @@ import (
 	"github.com/thanm/dwarf-check/dwexaminer"
 )
 
+var VerbLevel int
+
 type finfo struct {
 	name     string
 	dwOffset dwarf.Offset
@@ -29,12 +32,29 @@ type finfo struct {
 	params   []param
 }
 
+type examination struct {
+	warnings []string
+	status   bool
+}
+
 type param struct {
 	name  string
 	entry dwarf.Entry
 }
 
-func examineFile(loadmodule string, fcn string) bool {
+func warn(s string, a ...interface{}) {
+	fmt.Fprintf(os.Stderr, s, a...)
+	fmt.Fprintf(os.Stderr, "\n")
+}
+
+func verb(vlevel int, s string, a ...interface{}) {
+	if VerbLevel >= vlevel {
+		fmt.Printf(s, a...)
+		fmt.Printf("\n")
+	}
+}
+
+func ExamineFile(loadmodule string, fcn string) bool {
 	fi := locateFuncDetails(loadmodule, fcn)
 	if !fi.valid {
 		return false
