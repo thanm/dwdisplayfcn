@@ -35,4 +35,8 @@ func TestBasic(t *testing.T) {
 	if !res {
 		t.Errorf("examineFile returned false")
 	}
+	res = examine.ExamineFile(exe, "main.NotThere")
+	if res {
+		t.Errorf("examineFile returned true for nonexistent func")
+	}
 }
