@@ -1,8 +1,6 @@
 package examine_test
 
 import (
-	"io/ioutil"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -13,12 +11,7 @@ import (
 
 func TestBasic(t *testing.T) {
 
-	// Create tempdir
-	dir, err := ioutil.TempDir("", "TestBasicTmpDir")
-	if err != nil {
-		t.Fatalf("could not create directory: %v", err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// Do a build of abc.go into <tmpdir>/out.exe
 	exe := filepath.Join(dir, "out.exe")
