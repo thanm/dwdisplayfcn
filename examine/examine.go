@@ -72,21 +72,75 @@ func ExamineFile(loadmodule string, fcn string) bool {
 	return true
 }
 
+var AMD64DWARFRegisters = map[int]string{
+	0:  "RAX",
+	1:  "RDX",
+	2:  "RCX",
+	3:  "RBX",
+	4:  "RSI",
+	5:  "RDI",
+	6:  "RBP",
+	7:  "RSP",
+	8:  "R8",
+	9:  "R9",
+	10: "R10",
+	11: "R11",
+	12: "R12",
+	13: "R13",
+	14: "R14",
+	15: "R15",
+	17: "X0",
+	18: "X1",
+	19: "X2",
+	20: "X3",
+	21: "X4",
+	22: "X5",
+	23: "X6",
+	24: "X7",
+	25: "X8",
+	26: "X9",
+	27: "X10",
+	28: "X11",
+	29: "X12",
+	30: "X13",
+	31: "X14",
+	32: "X15",
+}
+
+func regString(dwreg int) string {
+	v := AMD64DWARFRegisters[dwreg]
+	if v != "" {
+		return v
+	}
+	return fmt.Sprintf("reg=%d", dwreg)
+}
+
 //  47dbe0:       cmp    0x10(%r14),%rsp
 //  47dbe4:       jbe    47dc3c <main.main+0x5c>
 //  47dbe6:       sub    $0x40,%rsp
 
-func pstring(pcs []op.Piece) string {
+func pstring(addr int64, pcs []op.Piece, err error) (string, error) {
+	if err != nil {
+		serr := fmt.Sprintf("%s", err)
+		if strings.HasPrefix(serr, "could not find loclist entry") {
+			return "<not available>", nil
+		}
+		return "", err
+	}
+	if pcs == nil {
+		return fmt.Sprintf("addr=%x", addr), nil
+	}
 	r := "{"
 	for k, p := range pcs {
 		r += fmt.Sprintf(" [%d: S=%d", k, p.Size)
-		if p.IsRegister {
-			r += fmt.Sprintf(" reg=%d]", p.RegNum)
+		if p.Kind == op.RegPiece {
+			r += fmt.Sprintf(" %s]", regString(int(p.Val)))
 		} else {
-			r += fmt.Sprintf(" addr=0x%x]", p.Addr)
+			r += fmt.Sprintf(" addr=0x%x]", p.Val)
 		}
 	}
-	return r
+	r += " }"
+	return r, nil
 }
 
 func emitAnnotatedDump(asmLines []string, fi finfo, bi *proc.BinaryInfo) {
@@ -105,13 +159,13 @@ func emitAnnotatedDump(asmLines []string, fi finfo, bi *proc.BinaryInfo) {
 			continue
 		}
 		for k, p := range fi.params {
-			_, pieces, _, err := bi.Location(&p.entry, dwarf.AttrLocation, pc, op.DwarfRegisters{CFA: _cfa, FrameBase: _cfa})
-			if err != nil {
-				warn("bad return from bi.Location at pc 0x%x: %s",
+			addr, pieces, _, err := bi.Location(&p.entry, dwarf.AttrLocation, pc, op.DwarfRegisters{CFA: _cfa, FrameBase: _cfa}, nil)
+			pdump, err := pstring(addr, pieces, err)
+			if err != nil && fmt.Sprintf("%s", err) != "empty OP stack" {
+				fmt.Printf("^ ** bad return from bi.Location at pc 0x%x: %q\n",
 					pc, err)
 				return
 			}
-			pdump := pstring(pieces)
 			if pdump != pstate[k] {
 				fmt.Printf(" ^ %q now in: %s\n", p.name, pdump)
 				pstate[k] = pdump
@@ -140,7 +194,7 @@ func collectParams(loadmodule string, fi *finfo) *proc.BinaryInfo {
 	rdr.Seek(dwarf.Offset(fi.dwOffset))
 	rdr.Next()
 
-	// Collect formal params.
+	// Collect formal params and locals.
 	for {
 		e, err := rdr.Next()
 		if err != nil {
@@ -151,16 +205,19 @@ func collectParams(loadmodule string, fi *finfo) *proc.BinaryInfo {
 			break
 		}
 		rdr.SkipChildren()
-		if e.Tag != dwarf.TagFormalParameter {
+		if e.Tag != dwarf.TagFormalParameter && e.Tag != dwarf.TagVariable {
 			continue
 		}
 		if e.Val(dwarf.AttrName) == nil {
 			continue
 		}
 		name := e.Val(dwarf.AttrName).(string)
-		isvar := e.Val(dwarf.AttrVarParam).(bool)
+		var isrvar bool
+		if e.Tag == dwarf.TagFormalParameter {
+			isrvar = e.Val(dwarf.AttrVarParam).(bool)
+		}
 		// skip all return arguments
-		if isvar {
+		if isrvar {
 			continue
 		}
 		// skip _, no-name args
