@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 
 	"github.com/thanm/dwdisplayfcn/examine"
 )
@@ -21,6 +22,7 @@ import (
 var verbflag = flag.Int("v", 0, "Verbose trace output level")
 var fcnflag = flag.String("f", "", "name of function to display")
 var moduleflag = flag.String("m", "", "load module to read")
+var dumpbiflag = flag.Bool("dbi", false, "dump runtime/debug build info")
 
 func verb(vlevel int, s string, a ...interface{}) {
 	if *verbflag >= vlevel {
@@ -43,11 +45,28 @@ func usage(msg string) {
 	os.Exit(2)
 }
 
+func dumpBuildInfo() {
+	bip, ok := debug.ReadBuildInfo()
+	if !ok {
+		println("no build info")
+	} else {
+		println("goversion", bip.GoVersion)
+		println("main package path", bip.Path)
+		fmt.Printf("main mod: %+v\n", bip.Main)
+		for k, dep := range bip.Deps {
+			fmt.Printf("  dep %d: %+v\n", k, dep)
+		}
+	}
+}
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("dwdisplayfcn: ")
 	flag.Parse()
 	verb(1, "in main")
+	if *dumpbiflag {
+		dumpBuildInfo()
+	}
 	if *fcnflag == "" || *moduleflag == "" {
 		usage("please supply -f and -m options")
 	}
